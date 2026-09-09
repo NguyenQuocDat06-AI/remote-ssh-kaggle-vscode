@@ -90,21 +90,31 @@ Use the hostname (`0.tcp.ap.ngrok.io`) and port (`12345`) to connect via VS Code
 ## 🛠️ Customization
 
 ### Change Default Password
-Edit `install_ssh_server.sh` line 4:
+Edit the `PASSWORD` line near the top of `install_ssh_server.sh`:
 ```bash
 PASSWORD=${1:-"your_new_default_password"}
 ```
 
 ### Change Ngrok Region
-Edit `run_ssh_server.sh` line 2:
-```bash
-ngrok tcp 22 --region us  # or eu, au, etc.
-```
 
-Available regions: `us`, `eu`, `ap`, `au`, `sa`, `jp`, `in`
+> [!NOTE]
+> Recent ngrok versions print `Flag --region has been deprecated, ngrok automatically
+> chooses the region with lowest latency`. The flag is still accepted, but you normally
+> no longer need to set it.
+
+To pin a region anyway, edit the `ngrok` line in `run_ssh_server.sh`:
+```bash
+ngrok tcp 22 --region us  # or eu, ap, au, sa, jp, in
+```
 
 ### Add Additional SSH Configuration
-Edit `install_ssh_server.sh` after line 27, before `sudo service ssh restart`:
+In `install_ssh_server.sh`, add your line alongside the other `sshd_config` writes —
+anywhere above `sudo service ssh restart`:
 ```bash
-sudo echo "YourCustomConfig yes" >> /etc/ssh/sshd_config
+echo "YourCustomConfig yes" | sudo tee -a /etc/ssh/sshd_config
 ```
+
+> [!WARNING]
+> Use `| sudo tee -a`, not `sudo echo ... >>`. With `sudo echo`, the redirect is performed
+> by your *own* shell before `sudo` runs, so it fails on a root-owned file. The script
+> itself already uses the `tee` form.

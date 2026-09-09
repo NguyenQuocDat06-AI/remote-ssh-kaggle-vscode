@@ -1,159 +1,259 @@
-# <font color="turquoise"> <p style="text-align:center"> Remote-SSH Kaggle using Visual Studio Code </p> </font>
-
-
 <div align="center">
-    <img src="imgs/architecture_ssh.png" alt="SSH Architecture">
+
+# Remote-SSH Kaggle using Visual Studio Code
+
+**Connect to a Kaggle notebook over SSH from VS Code — password auth, no SSH keys required.**
+
+Keep a 12-hour session running uninterrupted, use a real terminal and debugger,
+and work with `.py` files instead of notebook cells.
+
+<img src="imgs/architecture_ssh.png" alt="SSH architecture">
+
+<img src="imgs/vscode_ssh_screen.png" alt="VS Code connected to Kaggle over SSH">
+
 </div>
-<br>
 
-<div align="center">
-    <img src="imgs/vscode_ssh_screen.png" alt="SSH Architecture">
-</div>
+---
 
-<br>
+## Why
 
-This repository provides a convenient way to remotely connect to Kaggle using Visual Studio Code with **password authentication**, enabling you to maximize the benefits of Kaggle's utilities. With this setup, you can maintain a continuous 12-hour session without interruptions. Additionally, you can extend the GPU usage from the default 30 hours per week to 42 hours by following a simple procedure (closing the notebook session at the end of the 29th hour, SSH back in, and maintain it for an additional 12 hours :v). This setup allows for easier usage of the terminal and debugging capabilities compared to the notebook interface provided by Kaggle. Furthermore, you can utilize and manage .`py files` effortlessly. 
+Kaggle's notebook interface is limiting once a project outgrows a few cells. Connecting over
+SSH gives you the full VS Code experience against Kaggle's GPUs: integrated terminal,
+breakpoint debugging, and a normal file-based project layout.
 
-**✨ Key Features:**
-- ✅ **Password Authentication** - No need to generate SSH keys!
-- ✅ **Modular Bash Scripts** - Easy to maintain and customize
-- ✅ **Includes Oh My Posh** - Beautiful terminal (optional)
-- ✅ **Simple Setup** - Just a few steps to get started
+It also lets you stretch GPU quota. The default is 30 hours per week — if you stop the
+notebook session near the end of hour 29 and SSH back in, you get roughly 12 more hours,
+for about **42 hours a week**.
 
-**📝 How It Works:**
-The notebook clones this repository and uses bash scripts (`install_ssh_server.sh`, `add_ngrok_token.sh`, `run_ssh_server.sh`) to set up SSH server with password authentication.
+### Features
 
-And there are many more exciting features for you to explore!
-<br>
+- 🔑 **Password authentication** — no SSH keypair to generate or upload
+- 🧩 **Modular bash scripts** — easy to read, easy to customise
+- ✨ **Oh My Posh included** — optional pretty terminal prompt
+- ⚡ **Quick setup** — a handful of steps end to end
 
-# <font color="magenta"> <p style="text-align:center"> Getting Started </p> </font>
+And plenty more to explore once you are in.
 
+### How it works
 
-# 1. Install Visual Studio Code and create account Ngrok
+The Kaggle notebook clones this repository and runs three small scripts — see
+[SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md) for the details of each:
 
-- Download and install Visual Studio Code: https://code.visualstudio.com/ 
-- Create account Ngrok: https://ngrok.com/
+| Script | Does |
+|---|---|
+| `install_ssh_server.sh` | Sets the root password and installs OpenSSH + ngrok |
+| `add_ngrok_token.sh` | Registers your ngrok auth token |
+| `run_ssh_server.sh` | Opens an ngrok TCP tunnel to port 22 |
 
-# 2. Environment settings
+---
 
-- **2.1** Go to Kaggle notebook: [Notebook Example](https://www.kaggle.com/hongtrung/ssh-kaggle-visualstudiocode)
-    - Or upload `notebook_example.ipynb` from this repository
+## Contents
+
+- [1. Prerequisites](#1-prerequisites)
+- [2. Set up the Kaggle notebook](#2-set-up-the-kaggle-notebook)
+- [3. Configure SSH in VS Code](#3-configure-ssh-in-vs-code)
+- [4. Using it](#4-using-it)
+- [Tips and tricks](#tips-and-tricks)
+- [Conclusion](#conclusion)
+
+---
+
+## 1. Prerequisites
+
+- Install **Visual Studio Code**: https://code.visualstudio.com/
+- Create an **Ngrok** account: https://ngrok.com/
+
+---
+
+## 2. Set up the Kaggle notebook
+
+- **2.1** Open the notebook: [Notebook Example](https://www.kaggle.com/hongtrung/ssh-kaggle-visualstudiocode)
+    — or upload `notebook_example.ipynb` from this repository.
 
 - **2.2** Choose `Copy & Edit`:
+
     ![](imgs/coppy_notebook.png)
 
-- **2.3** In the right-hand bar, choose 1 of these 2 GPUs. TPU is not supported:
+- **2.3** In the right-hand sidebar, pick one of these two GPUs:
+
     ![](imgs/choose_gpu.png)
 
-- **2.4** At `persistence`, select `Files only` to save files every time you Stop Session:
+    > ⚠️ **Warning:** TPU is not supported.
+
+- **2.4** Under `persistence`, select `Files only` so your files survive each Stop Session:
+
     ![](imgs/persistence.png)
 
+- **2.5** Go to [Ngrok](https://ngrok.com/) → Your Authtoken → press copy:
 
-- **2.4** Go to [Ngrok](https://ngrok.com/) -> Your Authtoken -> press copy:
     ![](imgs/get_ngork.png)
 
-- **2.5** In cell 3 (the setup cell), set your SSH password and paste your Ngrok token:
+- **2.6** In cell 3 (the setup cell), set your SSH password and paste your Ngrok token:
+
     ```python
     ssh_password = "kaggle"  # Change this to your desired password
-    
+
     # Run bash scripts
     !bash install_ssh_server.sh $ssh_password
     !bash add_ngrok_token.sh YOUR_NGROK_TOKEN  # Replace with your actual token
     ```
 
-- **2.6** In the last cell (cell 4 - runs `bash run_ssh_server.sh`), notice the `HostName: 0.tcp.ap.ngrok.io` and `Port: 17520`. Make a note to use for step **3.6**.
+- **2.7** In the last cell (cell 4 — runs `bash run_ssh_server.sh`), note the `HostName` and
+    `Port` from the ngrok output, e.g. `0.tcp.ap.ngrok.io` and `17520`. You need both in step **3.6**.
+
     ![](imgs/last_cell.png)
 
-# 3. Install SSH configuration on Visual Studio Code
+---
 
-- **3.1** Press `Ctrl Shift X`, search SSH and install the following 2 extentions:\
+## 3. Configure SSH in VS Code
+
+- **3.1** Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd>, search for SSH, and install
+    these two extensions:
+
     ![](imgs/ssh_extention.png)
 
-- **3.2** Note: How to SSH in detail see here (https://code.visualstudio.com/docs/remote/ssh)
+- **3.2** For background on how Remote-SSH works, see the
+    [VS Code Remote-SSH docs](https://code.visualstudio.com/docs/remote/ssh).
 
-- **3.3** Press `Ctrl Shift P` -> `Remote-SSH: Connect to Host…`\
+- **3.3** Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> → `Remote-SSH: Connect to Host…`
+
     ![](imgs/remote_ssh.png)
 
-- **3.4** Press `Configure SSH Host…`\
+- **3.4** Press `Configure SSH Host…`
+
     ![](imgs/choose_config.png)
 
-- **3.5** Select `~/.ssh/config`, usually the first file.\
+- **3.5** Select `~/.ssh/config` — usually the first entry in the list.
+
     ![](imgs/choose_config_file.png)
 
-- **3.6** Add the following information to the config file:
-    ```
+- **3.6** Add this block to the config file:
+
+    ```ssh-config
     Host Kaggle
         HostName 0.tcp.ap.ngrok.io
         Port 17520
         User root
     ```
-    - Host: SSH's name, whatever you want (e.g., "Kaggle")
-    - HostName: Server's IP address from step **2.6**
-    - Port: Port number from step **2.6**
-    - User: root (keep as root)
 
-- **3.7** Press `Ctrl S` and `Ctrl Shift P` -> `Remote-SSH: Connect to Host…`
+    | Field | Value | Where it comes from |
+    |---|---|---|
+    | `Host` | `Kaggle` | Any name you like |
+    | `HostName` | `0.tcp.ap.ngrok.io` | Step **2.7** |
+    | `Port` | `17520` | Step **2.7** |
+    | `User` | `root` | Always `root` |
+
+- **3.7** Press <kbd>Ctrl</kbd>+<kbd>S</kbd>, then
+    <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> → `Remote-SSH: Connect to Host…`
+
     ![](imgs/remote_ssh.png)
 
-- **3.8** Press `Kaggle` that you named `Host: Kaggle`
+- **3.8** Pick the host you just named — `Kaggle`:
+
     ![](imgs/connect_ssh.png)
 
-- **3.9** When prompted, enter the password you set in step **2.5** (default is `kaggle`)
+- **3.9** When prompted, enter the password you set in step **2.6** (default: `kaggle`).
 
-- **3.10** Press `continue` (Note: If a list appears to select the operating system, please select `linux`):
+- **3.10** Press `continue`:
+
     ![](imgs/press_continue.png)
 
-- **3.11** At the bottom left corner shows as shown in the picture that ssh was successful:
+    > 💡 **Tip:** If VS Code asks you to choose the operating system, select `linux`.
+
+- **3.11** The bottom-left corner confirms the connection:
+
     ![](imgs/connected.png)
 
-# 4. Using
+---
 
-- **4.1** Press `Ctrl K O` -> Enter the path `/kaggle` -> Press `ok`.
+## 4. Using it
+
+- **4.1** Press <kbd>Ctrl</kbd>+<kbd>K</kbd> <kbd>O</kbd>, enter the path `/kaggle`, press `ok`.
+
     ![](imgs/choose_dir.png)
 
-- **4.2** Open terminal press `Ctrl J` -> enter `conda init` -> press kill as shown in the picture.
-    ![](imgs/kill_conda_init.png)
+- **4.2** Open a terminal with <kbd>Ctrl</kbd>+<kbd>J</kbd>. The system python already
+    carries the full Kaggle stack (torch, numpy, …), so you can start working right away.
+    `uv` is preinstalled for anything you need to add:
 
+    ```bash
+    uv pip install --system <package>
+    ```
 
-- **4.3** Activate cuda:
-    <!-- - Run the following scripts in terminal to install cuda (`Ctrl J` to open terminal):
-        ```bash
-        cd /kaggle/working/remote-ssh-kaggle-vscode
-        bash install_cuda.sh
-        ```
-    - Select language and press OK as shown in the picture:
-    ![](imgs/cuda_config_language.png) -->
+    Prefer an isolated environment? Create it with `--system-site-packages` so it can still
+    see the preinstalled Kaggle packages:
 
-    - Run the following scripts in terminal to activate cuda (`Ctrl J` to open terminal):
-        ```bash
-        sudo apt install nvidia-utils-515 -y
-        ```
+    ```bash
+    uv venv --system-site-packages .venv
+    source .venv/bin/activate
+    uv pip install <package>
+    ```
 
+    > ⚠️ **Warning:** a plain `uv venv`, without `--system-site-packages`, starts empty —
+    > `import torch` fails inside it. And outside a virtual environment `uv pip install`
+    > needs the `--system` flag, otherwise it exits with `No virtual environment found`.
 
-- **4.4** Check GPU `nvidia-smi`:
+- **4.3** Activate CUDA. The image already ships the driver — it is simply missing from
+    the SSH shell's environment, because that shell does not inherit the notebook kernel's
+    paths. Two exports fix it instantly, with no download:
+
+    ```bash
+    export PATH=/opt/bin:$PATH
+    export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:$LD_LIBRARY_PATH
+    ```
+
+    They apply to the current shell only — append them to `/root/.bashrc` if you open
+    several terminals, and redo them after each Stop Session.
+
+    > 📝 **Fallback:** if those paths move in a future Kaggle image, installing the driver
+    > utilities works too — it just downloads a few hundred MB, and also has to be repeated
+    > after every Stop Session: `sudo apt install nvidia-utils-515 -y`
+
+- **4.4** Check the GPU is visible:
+
+    ```bash
+    nvidia-smi
+    ```
+
     ![](imgs/check_gpu.png)
 
+    > 💡 **Tip:** If `nvidia-smi` reports no devices, the session has no GPU attached at all — check
+    > the `Accelerator` setting from step **2.3**.
 
-- **4.5** After each time stopping a session and running a new session notebook on Kaggle, you only need to perform the following operations in order to continue using: 
-    - Run cell 4 to get new hostname and port
-    - Update your SSH config with new hostname/port (step 3.6)
-    - Connect via VS Code (steps 3.7 -> 3.8 -> 3.9)
-    - Continue working (steps 4.1 -> 4.2 -> 4.3 -> 4.4)
+- **4.5** After each Stop Session, you only need to redo a subset:
 
+    1. Run cell 4 to get the new hostname and port
+    2. Update your SSH config with them (step **3.6**)
+    3. Reconnect from VS Code (steps **3.7** → **3.8** → **3.9**)
+    4. Carry on working (steps **4.1** → **4.2** → **4.3** → **4.4**)
 
+---
 
-# <font color="clay"> <p style="text-align:center"> Tips and Tricks </p> </font>
+## Tips and tricks
 
-Here are some tips and tricks to make the most out of your remote-SSH Kaggle setup:
-- To maintain a continuous session, remember to close the notebook session and SSH back in before reaching the 30-hour GPU usage limit. By doing so, you can extend your GPU usage to a maximum of 42 hours per week.
-- Use the terminal in Visual Studio Code for easier command-line interactions and workflows.
-- Take advantage of the debugging capabilities in Visual Studio Code to streamline your Kaggle projects.
-- Easily manage and work with .py files by organizing your code in a familiar file-based structure.
-- On the right bar of the `Data` section you will see 2 sections `Input` and `Output`:
-    - With `Input` as the place to receive data from kaggle and you do not have the right to edit on visual studio code, the corresponding dir is `/kaggle/input/...` The maximum storage memory for your private data is ~107GB, and for public data is unlimited.
-    - `Output` is where you will work, corresponding to the dir of `/kaggle/working/...` Maximum storage memory is ~20GB.
-    ![](imgs/file_relationship.png)
+- To stretch GPU quota, stop the notebook session and SSH back in before you hit the
+  30-hour weekly limit — that gets you up to ~42 hours a week.
+- Use the integrated terminal rather than notebook cells for anything shell-shaped.
+- Set breakpoints and use the VS Code debugger instead of `print` debugging.
+- Keep code in `.py` files and import across them, like a normal project.
 
+### Where your files live
 
-# Conclusion
-With remote-SSH Kaggle using Visual Studio Code, you can unlock the full potential of Kaggle and enjoy a seamless development experience. Start leveraging the power of Kaggle's utilities while benefiting.
+The `Data` panel on the right has two sections, and they map to different paths with
+different rules:
+
+| Section | Path | Writable | Size limit |
+|---|---|---|---|
+| **Input** | `/kaggle/input/...` | ❌ Read-only | ~107 GB private, unlimited public |
+| **Output** | `/kaggle/working/...` | ✅ Your workspace | ~20 GB |
+
+![](imgs/file_relationship.png)
+
+---
+
+## Conclusion
+
+With Remote-SSH Kaggle and Visual Studio Code you get the full weight of Kaggle's GPUs
+behind a development environment you actually enjoy using — a real terminal, a real
+debugger, and a normal project layout. Set it up once and the only thing you repeat
+between sessions is step **4.5**.
