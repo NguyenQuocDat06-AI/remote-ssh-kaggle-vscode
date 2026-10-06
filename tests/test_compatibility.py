@@ -47,6 +47,7 @@ class EnvironmentTests(unittest.TestCase):
                     first = (root / "etc/ssh/sshd_config_kaggle").read_text(encoding="utf-8")
                     ssh_environment.write_configuration(root)
             self.assertEqual(first, (root / "etc/ssh/sshd_config_kaggle").read_text(encoding="utf-8"))
+            self.assertEqual(sum(line.startswith("SetEnv ") for line in first.splitlines()), 1)
             self.assertIn("# custom user configuration", bashrc.read_text(encoding="utf-8"))
             self.assertEqual(bashrc.read_text(encoding="utf-8").count(ssh_environment.PROFILE_SOURCE), 1)
             for path in root.rglob("*"):

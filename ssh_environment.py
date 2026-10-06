@@ -68,7 +68,8 @@ ClientAliveInterval 60
 ClientAliveCountMax 3
 Subsystem sftp internal-sftp
 """
-    config += "".join(f"SetEnv {sshd_quote(name + '=' + value)}\n" for name, value in env.items())
+    # OpenSSH uses the first SetEnv directive; put every assignment on it.
+    config += "SetEnv " + " ".join(sshd_quote(name + "=" + value) for name, value in env.items()) + "\n"
     config_path = root / "etc/ssh/sshd_config_kaggle"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(config, encoding="utf-8")
