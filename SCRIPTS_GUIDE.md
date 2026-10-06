@@ -53,7 +53,9 @@ group and cleans up the tunnel. Keep the cell running during the connection.
 ## Notebook maintenance
 
 Both notebooks clone/update `NguyenQuocDat06-AI/remote-ssh-kaggle-vscode` on `main`,
-use Kaggle Secrets, and skip network/service work in batch saves. The personal
+use Kaggle Secrets, and start SSH in both interactive and batch sessions. The
+last cell waits for the tunnel process, keeping Save & Run All active until the
+tunnel stops or Kaggle ends the session. The personal
 notebook retains its accelerator/data-source metadata, with the old image pin
 removed. Outputs and execution counts are cleared before publishing.
 

@@ -22,11 +22,13 @@ CELLS = [
         1. Enable **Internet** in Notebook settings. Select a GPU if you need one.
         2. In **Add-ons > Secrets**, add and enable `SSH_PASSWORD` and `NGROK_AUTHTOKEN`.
            Get your ngrok token at https://dashboard.ngrok.com/get-started/your-authtoken.
-        3. Run the following cells in the interactive editor, in order. No restart is required.
+        3. Run the following cells in order, or use **Save & Run All**. No restart is required.
         4. Keep the last cell running during your VS Code session.
 
-        Use **Quick Save** to save this notebook. **Save & Run All** starts a separate
-        batch session; this notebook skips SSH setup there so saving can finish.
+        **Save & Run All** starts a separate batch session, sets up SSH, and keeps
+        the final cell running. Open that version's live logs to get its SSH hostname/port.
+        The run stays **Running** while the tunnel is active; stop it when you finish.
+        **Quick Save** saves your edits without starting another session.
         After **Stop Session**, rerun all cells and update the generated hostname/port.
         Files in `/kaggle/working` can persist; installed services and host keys do not.
     """, "instructions"),
@@ -36,28 +38,24 @@ CELLS = [
         import subprocess
         import sys
 
-        INTERACTIVE = os.environ.get("KAGGLE_KERNEL_RUN_TYPE", "Interactive").lower() == "interactive"
         REPO_URL = "https://github.com/NguyenQuocDat06-AI/remote-ssh-kaggle-vscode.git"
         REPO_DIR = Path("/kaggle/working/remote-ssh-kaggle-vscode")
 
-        if INTERACTIVE:
-            if not REPO_DIR.exists():
-                subprocess.run(["git", "clone", "--branch", "main", "--depth", "1",
-                                REPO_URL, str(REPO_DIR)], check=True)
-            else:
-                if not (REPO_DIR / ".git").exists():
-                    raise RuntimeError(f"{REPO_DIR} exists but is not a Git repository.")
-                changes = subprocess.check_output(
-                    ["git", "-C", str(REPO_DIR), "status", "--porcelain", "--untracked-files=no"], text=True
-                ).strip()
-                if changes:
-                    raise RuntimeError("Save or stash your changes in the repository before updating it.")
-                subprocess.run(["git", "-C", str(REPO_DIR), "remote", "set-url", "origin", REPO_URL], check=True)
-                subprocess.run(["git", "-C", str(REPO_DIR), "checkout", "main"], check=True)
-                subprocess.run(["git", "-C", str(REPO_DIR), "pull", "--ff-only", "origin", "main"], check=True)
-            print("Notebook Python:", sys.executable, sys.version.split()[0])
+        if not REPO_DIR.exists():
+            subprocess.run(["git", "clone", "--branch", "main", "--depth", "1",
+                            REPO_URL, str(REPO_DIR)], check=True)
         else:
-            print("Batch save: SSH setup is skipped. Run cells in the interactive editor to connect.")
+            if not (REPO_DIR / ".git").exists():
+                raise RuntimeError(f"{REPO_DIR} exists but is not a Git repository.")
+            changes = subprocess.check_output(
+                ["git", "-C", str(REPO_DIR), "status", "--porcelain", "--untracked-files=no"], text=True
+            ).strip()
+            if changes:
+                raise RuntimeError("Save or stash your changes in the repository before updating it.")
+            subprocess.run(["git", "-C", str(REPO_DIR), "remote", "set-url", "origin", REPO_URL], check=True)
+            subprocess.run(["git", "-C", str(REPO_DIR), "checkout", "main"], check=True)
+            subprocess.run(["git", "-C", str(REPO_DIR), "pull", "--ff-only", "origin", "main"], check=True)
+        print("Notebook Python:", sys.executable, sys.version.split()[0], flush=True)
     """, "get-source"),
     cell("markdown", """
         ## Install and configure SSH + ngrok
@@ -81,19 +79,18 @@ CELLS = [
                 raise ValueError(f"{name} must be nonempty and contain only one line.")
             return value
 
-        if INTERACTIVE:
-            setup_env = os.environ.copy()
-            setup_env["KAGGLE_PYTHON"] = sys.executable
-            try:
-                setup_env["SSH_PASSWORD"] = read_secret("SSH_PASSWORD")
-                setup_env["NGROK_AUTHTOKEN"] = read_secret("NGROK_AUTHTOKEN")
-                subprocess.run(["bash", "install_ssh_server.sh"], cwd=REPO_DIR, env=setup_env, check=True)
-                setup_env.pop("SSH_PASSWORD", None)
-                subprocess.run(["bash", "add_ngrok_token.sh"], cwd=REPO_DIR, env=setup_env, check=True)
-            finally:
-                setup_env.pop("SSH_PASSWORD", None)
-                setup_env.pop("NGROK_AUTHTOKEN", None)
-            print("Setup complete. Run the next cell to get your SSH configuration.")
+        setup_env = os.environ.copy()
+        setup_env["KAGGLE_PYTHON"] = sys.executable
+        try:
+            setup_env["SSH_PASSWORD"] = read_secret("SSH_PASSWORD")
+            setup_env["NGROK_AUTHTOKEN"] = read_secret("NGROK_AUTHTOKEN")
+            subprocess.run(["bash", "install_ssh_server.sh"], cwd=REPO_DIR, env=setup_env, check=True)
+            setup_env.pop("SSH_PASSWORD", None)
+            subprocess.run(["bash", "add_ngrok_token.sh"], cwd=REPO_DIR, env=setup_env, check=True)
+        finally:
+            setup_env.pop("SSH_PASSWORD", None)
+            setup_env.pop("NGROK_AUTHTOKEN", None)
+        print("Setup complete. The next cell starts the tunnel and keeps the session running.", flush=True)
     """, "setup"),
     cell("markdown", """
         ## Connect from VS Code
@@ -103,6 +100,8 @@ CELLS = [
         select **Linux**, and enter your `SSH_PASSWORD`. Open `/kaggle/working`.
 
         The cell remains running until you interrupt it. Stopping it closes the tunnel.
+        In a **Save & Run All** session, read the generated SSH configuration in the
+        running version's logs. The run will not finish while the tunnel is active.
         ngrok TCP access requires an account eligible for TCP endpoints; a free account
         currently needs a valid payment method. If ngrok refuses the tunnel, its error
         appears in this cell.
@@ -117,27 +116,26 @@ CELLS = [
         install or replace NVIDIA drivers.
     """, "connect-instructions"),
     cell("code", """
-        if INTERACTIVE:
-            import signal
+        import signal
 
-            tunnel_env = os.environ.copy()
-            tunnel_env["KAGGLE_PYTHON"] = sys.executable
-            tunnel_process = subprocess.Popen(
-                ["bash", "run_ssh_server.sh"], cwd=REPO_DIR, env=tunnel_env, start_new_session=True
-            )
-            try:
-                returncode = tunnel_process.wait()
-                if returncode:
-                    raise RuntimeError(f"Tunnel stopped with exit code {returncode}. Check the error above.")
-            except KeyboardInterrupt:
-                if tunnel_process.poll() is None:
-                    os.killpg(tunnel_process.pid, signal.SIGINT)
-                    try:
-                        tunnel_process.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        os.killpg(tunnel_process.pid, signal.SIGKILL)
-                        tunnel_process.wait()
-                print("Tunnel stopped. Rerun this cell to reconnect.")
+        tunnel_env = os.environ.copy()
+        tunnel_env["KAGGLE_PYTHON"] = sys.executable
+        tunnel_process = subprocess.Popen(
+            ["bash", "run_ssh_server.sh"], cwd=REPO_DIR, env=tunnel_env, start_new_session=True
+        )
+        try:
+            returncode = tunnel_process.wait()
+            if returncode:
+                raise RuntimeError(f"Tunnel stopped with exit code {returncode}. Check the error above.")
+        except KeyboardInterrupt:
+            if tunnel_process.poll() is None:
+                os.killpg(tunnel_process.pid, signal.SIGINT)
+                try:
+                    tunnel_process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(tunnel_process.pid, signal.SIGKILL)
+                    tunnel_process.wait()
+            print("Tunnel stopped. Rerun this cell to reconnect.", flush=True)
     """, "tunnel"),
 ]
 

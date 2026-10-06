@@ -2,7 +2,7 @@
 
 # Remote-SSH Kaggle using Visual Studio Code
 
-**Connect VS Code to an interactive Kaggle notebook with password authentication.**
+**Connect VS Code to a Kaggle notebook with password authentication.**
 
 <img src="imgs/architecture_ssh.png" alt="SSH architecture">
 <img src="imgs/vscode_ssh_screen.png" alt="VS Code connected to Kaggle over SSH">
@@ -25,7 +25,7 @@
    | `SSH_PASSWORD` | Your SSH login password |
    | `NGROK_AUTHTOKEN` | Your [ngrok authtoken](https://dashboard.ngrok.com/get-started/your-authtoken) |
 
-4. Run the three code cells in order in the interactive editor: update the source,
+4. Run the three code cells in order, or choose **Save & Run All**: update the source,
    set up SSH/ngrok, then start the tunnel. Setup supports passwords with spaces
    and shell characters and stops if a command fails. No session restart is needed.
 5. Leave the tunnel cell running. It prints a complete SSH configuration like:
@@ -41,9 +41,10 @@
 
    Copy the actual hostname and port printed by your session.
 
-Use **Quick Save** to save the notebook. **Save & Run All** executes in a separate
-batch session; the notebook skips SSH setup and tunneling there so saving can
-finish. Use the interactive editor for a live connection.
+**Save & Run All** executes in a separate batch session and starts SSH there too.
+Open the running version's live logs and copy the SSH configuration printed by
+that session. Its status stays **Running** while the tunnel is active; stop the
+run when you finish. **Quick Save** saves edits without starting another session.
 
 [ngrok TCP endpoints](https://ngrok.com/docs/gateway/agent/cli#ngrok-tcp) require an
 account eligible for TCP access. Free accounts currently need a valid payment
@@ -123,7 +124,8 @@ shown in your Kaggle account.
 | `sshd: no hostkeys available -- exiting` | Update this repository and rerun setup. It runs `ssh-keygen -A` even when OpenSSH is already installed. |
 | `Add and enable SSH_PASSWORD/NGROK_AUTHTOKEN` | Add both secrets and enable them for this notebook. |
 | `ngrok exited` or `ERR_NGROK_*` | Read the agent error in the cell; check token, account TCP access, Internet, and other running agents. |
-| `Connection refused` before tunneling | Rerun setup in the current interactive session. Check `/var/log/kaggle-sshd.log`. |
+| `Connection refused` before tunneling | Rerun setup in the current session. Check `/var/log/kaggle-sshd.log`. |
+| `Batch save: SSH setup is skipped` | Import the updated notebook; earlier notebook versions disabled SSH during Save & Run All. Pulling source alone does not replace the notebook's cells. |
 | `Permission denied` | Use `User root` and the password from the current secret; update both the source and notebook. |
 | Debugger warning about frozen modules or `SyntaxWarning` in nbconvert | These warnings do not prevent SSH from starting; inspect the later SSH/ngrok error. |
 
