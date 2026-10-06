@@ -2,258 +2,132 @@
 
 # Remote-SSH Kaggle using Visual Studio Code
 
-**Connect to a Kaggle notebook over SSH from VS Code — password auth, no SSH keys required.**
-
-Keep a 12-hour session running uninterrupted, use a real terminal and debugger,
-and work with `.py` files instead of notebook cells.
+**Connect VS Code to an interactive Kaggle notebook with password authentication.**
 
 <img src="imgs/architecture_ssh.png" alt="SSH architecture">
-
 <img src="imgs/vscode_ssh_screen.png" alt="VS Code connected to Kaggle over SSH">
 
 </div>
 
----
+## Set up the notebook
 
-## Why
+1. Upload [notebook_example.ipynb](notebook_example.ipynb) or the updated
+   [personal notebook](fork-of-ssh-kaggle-visualstudiocode-9d17dd.ipynb) to Kaggle.
+   Both use this repository:
+   `https://github.com/NguyenQuocDat06-AI/remote-ssh-kaggle-vscode.git`.
+2. Enable **Internet** in Notebook settings. Select a GPU if needed; CPU sessions
+   also support SSH. Choose **Files only** persistence if you want your working
+   files to survive between interactive sessions.
+3. Open **Add-ons > Secrets**, add these secrets, and enable each for the notebook:
 
-Kaggle's notebook interface is limiting once a project outgrows a few cells. Connecting over
-SSH gives you the full VS Code experience against Kaggle's GPUs: integrated terminal,
-breakpoint debugging, and a normal file-based project layout.
+   | Secret name | Value |
+   |---|---|
+   | `SSH_PASSWORD` | Your SSH login password |
+   | `NGROK_AUTHTOKEN` | Your [ngrok authtoken](https://dashboard.ngrok.com/get-started/your-authtoken) |
 
-It also lets you stretch GPU quota. The default is 30 hours per week — if you stop the
-notebook session near the end of hour 29 and SSH back in, you get roughly 12 more hours,
-for about **42 hours a week**.
+4. Run the three code cells in order in the interactive editor: update the source,
+   set up SSH/ngrok, then start the tunnel. Setup supports passwords with spaces
+   and shell characters and stops if a command fails. No session restart is needed.
+5. Leave the tunnel cell running. It prints a complete SSH configuration like:
 
-### Features
+   ```ssh-config
+   Host Kaggle
+       HostName 1.tcp.ngrok.io
+       Port 12345
+       User root
+       ServerAliveInterval 60
+       ServerAliveCountMax 3
+   ```
 
-- 🔑 **Password authentication** — no SSH keypair to generate or upload
-- 🧩 **Modular bash scripts** — easy to read, easy to customise
-- ✨ **Oh My Posh included** — optional pretty terminal prompt
-- ⚡ **Quick setup** — a handful of steps end to end
+   Copy the actual hostname and port printed by your session.
 
-And plenty more to explore once you are in.
+Use **Quick Save** to save the notebook. **Save & Run All** executes in a separate
+batch session; the notebook skips SSH setup and tunneling there so saving can
+finish. Use the interactive editor for a live connection.
 
-### How it works
+[ngrok TCP endpoints](https://ngrok.com/docs/gateway/agent/cli#ngrok-tcp) require an
+account eligible for TCP access. Free accounts currently need a valid payment
+method. ngrok account/authentication errors appear in the tunnel cell.
 
-The Kaggle notebook clones this repository and runs three small scripts — see
-[SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md) for the details of each:
+## Connect from VS Code
 
-| Script | Does |
+1. Install [Visual Studio Code](https://code.visualstudio.com/) and the
+   **Remote - SSH** extension.
+2. Open **Remote-SSH: Open SSH Configuration File** from the command palette.
+   On Windows, this is normally `%USERPROFILE%\.ssh\config`.
+3. Paste the generated `Host Kaggle` block into the file and save it.
+4. Select **Remote-SSH: Connect to Host > Kaggle**, select **Linux** if prompted,
+   and enter the password from your `SSH_PASSWORD` secret.
+5. Open `/kaggle/working` and use VS Code's terminal, debugger, and file editor.
+
+See the [VS Code Remote-SSH documentation](https://code.visualstudio.com/docs/remote/ssh)
+for extension setup.
+
+## Python and GPU environment
+
+Setup captures the current notebook interpreter and Python/CUDA paths. Both
+remote commands and terminal shells receive the environment. Existing NVIDIA
+libraries are used; the scripts do not install or replace GPU drivers.
+
+Check from the SSH terminal:
+
+```bash
+python -c "import sys; print(sys.executable)"
+nvidia-smi
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+Choose the printed Python interpreter in VS Code's **Python: Select Interpreter**.
+If your interpreter is named `python3` instead of `python`, use `python3` or the
+printed absolute path.
+
+Install extra packages into the notebook interpreter:
+
+```bash
+uv pip install --system --python "$KAGGLE_PYTHON" <package>
+```
+
+Or create an isolated environment that can use Kaggle's preinstalled packages:
+
+```bash
+uv venv --python "$KAGGLE_PYTHON" --system-site-packages .venv
+source .venv/bin/activate
+uv pip install <package>
+```
+
+A CPU session has no GPU. If the GPU checks fail, first check the notebook's
+Accelerator setting and compare the same checks in the notebook.
+
+## Start a new session
+
+After **Stop Session**, rerun all three code cells. `/kaggle/working` may persist,
+but system packages, SSH host keys, daemon processes, and the ngrok token config
+must be recreated. The clone cell updates an existing repository without creating
+a nested clone and stops if tracked local edits would be affected.
+
+Update the hostname and port in your local SSH configuration before reconnecting.
+If SSH reports a changed host key, verify you are connecting to your new notebook
+session, then remove the old entry using the exact hostname and port:
+
+```bash
+ssh-keygen -R "[HOSTNAME]:PORT"
+```
+
+SSH does not extend Kaggle's session duration or GPU quota. Check the limits
+shown in your Kaggle account.
+
+## Troubleshooting
+
+| Message | What to do |
 |---|---|
-| `install_ssh_server.sh` | Sets the root password and installs OpenSSH + ngrok |
-| `add_ngrok_token.sh` | Registers your ngrok auth token |
-| `run_ssh_server.sh` | Opens an ngrok TCP tunnel to port 22 |
-
----
-
-## Contents
-
-- [1. Prerequisites](#1-prerequisites)
-- [2. Set up the Kaggle notebook](#2-set-up-the-kaggle-notebook)
-- [3. Configure SSH in VS Code](#3-configure-ssh-in-vs-code)
-- [4. Using it](#4-using-it)
-- [Tips and tricks](#tips-and-tricks)
-- [Conclusion](#conclusion)
-
----
-
-## 1. Prerequisites
-
-- Install **Visual Studio Code**: https://code.visualstudio.com/
-- Create an **Ngrok** account: https://ngrok.com/
-
----
-
-## 2. Set up the Kaggle notebook
-
-- **2.1** Open the notebook: [Notebook Example](https://www.kaggle.com/hongtrung/ssh-kaggle-visualstudiocode)
-    — or upload `notebook_example.ipynb` from this repository.
-
-- **2.2** Choose `Copy & Edit`:
-
-    ![](imgs/coppy_notebook.png)
-
-- **2.3** In the right-hand sidebar, pick one of these two GPUs:
-
-    ![](imgs/choose_gpu.png)
-
-    > ⚠️ **Warning:** TPU is not supported.
-
-- **2.4** Under `persistence`, select `Files only` so your files survive each Stop Session:
-
-    ![](imgs/persistence.png)
-
-- **2.5** Go to [Ngrok](https://ngrok.com/) → Your Authtoken → press copy:
-
-    ![](imgs/get_ngork.png)
-
-- **2.6** In cell 3 (the setup cell), set your SSH password and paste your Ngrok token:
-
-    ```python
-    ssh_password = "kaggle"  # Change this to your desired password
-
-    # Run bash scripts
-    !bash install_ssh_server.sh $ssh_password
-    !bash add_ngrok_token.sh YOUR_NGROK_TOKEN  # Replace with your actual token
-    ```
-
-- **2.7** In the last cell (cell 4 — runs `bash run_ssh_server.sh`), note the `HostName` and
-    `Port` from the ngrok output, e.g. `0.tcp.ap.ngrok.io` and `17520`. You need both in step **3.6**.
-
-    ![](imgs/last_cell.png)
-
----
-
-## 3. Configure SSH in VS Code
-
-- **3.1** Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd>, search for SSH, and install
-    these two extensions:
-
-    ![](imgs/ssh_extention.png)
-
-- **3.2** For background on how Remote-SSH works, see the
-    [VS Code Remote-SSH docs](https://code.visualstudio.com/docs/remote/ssh).
-
-- **3.3** Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> → `Remote-SSH: Connect to Host…`
-
-    ![](imgs/remote_ssh.png)
-
-- **3.4** Press `Configure SSH Host…`
-
-    ![](imgs/choose_config.png)
-
-- **3.5** Select `~/.ssh/config` — usually the first entry in the list.
-
-    ![](imgs/choose_config_file.png)
-
-- **3.6** Add this block to the config file:
-
-    ```ssh-config
-    Host Kaggle
-        HostName 0.tcp.ap.ngrok.io
-        Port 17520
-        User root
-    ```
-
-    | Field | Value | Where it comes from |
-    |---|---|---|
-    | `Host` | `Kaggle` | Any name you like |
-    | `HostName` | `0.tcp.ap.ngrok.io` | Step **2.7** |
-    | `Port` | `17520` | Step **2.7** |
-    | `User` | `root` | Always `root` |
-
-- **3.7** Press <kbd>Ctrl</kbd>+<kbd>S</kbd>, then
-    <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> → `Remote-SSH: Connect to Host…`
-
-    ![](imgs/remote_ssh.png)
-
-- **3.8** Pick the host you just named — `Kaggle`:
-
-    ![](imgs/connect_ssh.png)
-
-- **3.9** When prompted, enter the password you set in step **2.6** (default: `kaggle`).
-
-- **3.10** Press `continue`:
-
-    ![](imgs/press_continue.png)
-
-    > 💡 **Tip:** If VS Code asks you to choose the operating system, select `linux`.
-
-- **3.11** The bottom-left corner confirms the connection:
-
-    ![](imgs/connected.png)
-
----
-
-## 4. Using it
-
-- **4.1** Press <kbd>Ctrl</kbd>+<kbd>K</kbd> <kbd>O</kbd>, enter the path `/kaggle`, press `ok`.
-
-    ![](imgs/choose_dir.png)
-
-- **4.2** Open a terminal with <kbd>Ctrl</kbd>+<kbd>J</kbd>. The system python already
-    carries the full Kaggle stack (torch, numpy, …), so you can start working right away.
-    `uv` is preinstalled for anything you need to add:
-
-    ```bash
-    uv pip install --system <package>
-    ```
-
-    Prefer an isolated environment? Create it with `--system-site-packages` so it can still
-    see the preinstalled Kaggle packages:
-
-    ```bash
-    uv venv --system-site-packages .venv
-    source .venv/bin/activate
-    uv pip install <package>
-    ```
-
-    > ⚠️ **Warning:** a plain `uv venv`, without `--system-site-packages`, starts empty —
-    > `import torch` fails inside it. And outside a virtual environment `uv pip install`
-    > needs the `--system` flag, otherwise it exits with `No virtual environment found`.
-
-- **4.3** Activate CUDA. The image already ships the driver — it is simply missing from
-    the SSH shell's environment, because that shell does not inherit the notebook kernel's
-    paths. Two exports fix it instantly, with no download:
-
-    ```bash
-    export PATH=/opt/bin:$PATH
-    export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:$LD_LIBRARY_PATH
-    ```
-
-    They apply to the current shell only — append them to `/root/.bashrc` if you open
-    several terminals, and redo them after each Stop Session.
-
-    > 📝 **Fallback:** if those paths move in a future Kaggle image, installing the driver
-    > utilities works too — it just downloads a few hundred MB, and also has to be repeated
-    > after every Stop Session: `sudo apt install nvidia-utils-515 -y`
-
-- **4.4** Check the GPU is visible:
-
-    ```bash
-    nvidia-smi
-    ```
-
-    ![](imgs/check_gpu.png)
-
-    > 💡 **Tip:** If `nvidia-smi` reports no devices, the session has no GPU attached at all — check
-    > the `Accelerator` setting from step **2.3**.
-
-- **4.5** After each Stop Session, you only need to redo a subset:
-
-    1. Run cell 4 to get the new hostname and port
-    2. Update your SSH config with them (step **3.6**)
-    3. Reconnect from VS Code (steps **3.7** → **3.8** → **3.9**)
-    4. Carry on working (steps **4.1** → **4.2** → **4.3** → **4.4**)
-
----
-
-## Tips and tricks
-
-- To stretch GPU quota, stop the notebook session and SSH back in before you hit the
-  30-hour weekly limit — that gets you up to ~42 hours a week.
-- Use the integrated terminal rather than notebook cells for anything shell-shaped.
-- Set breakpoints and use the VS Code debugger instead of `print` debugging.
-- Keep code in `.py` files and import across them, like a normal project.
-
-### Where your files live
-
-The `Data` panel on the right has two sections, and they map to different paths with
-different rules:
-
-| Section | Path | Writable | Size limit |
-|---|---|---|---|
-| **Input** | `/kaggle/input/...` | ❌ Read-only | ~107 GB private, unlimited public |
-| **Output** | `/kaggle/working/...` | ✅ Your workspace | ~20 GB |
-
-![](imgs/file_relationship.png)
-
----
-
-## Conclusion
-
-With Remote-SSH Kaggle and Visual Studio Code you get the full weight of Kaggle's GPUs
-behind a development environment you actually enjoy using — a real terminal, a real
-debugger, and a normal project layout. Set it up once and the only thing you repeat
-between sessions is step **4.5**.
+| `sshd: no hostkeys available -- exiting` | Update this repository and rerun setup. It runs `ssh-keygen -A` even when OpenSSH is already installed. |
+| `Add and enable SSH_PASSWORD/NGROK_AUTHTOKEN` | Add both secrets and enable them for this notebook. |
+| `ngrok exited` or `ERR_NGROK_*` | Read the agent error in the cell; check token, account TCP access, Internet, and other running agents. |
+| `Connection refused` before tunneling | Rerun setup in the current interactive session. Check `/var/log/kaggle-sshd.log`. |
+| `Permission denied` | Use `User root` and the password from the current secret; update both the source and notebook. |
+| Debugger warning about frozen modules or `SyntaxWarning` in nbconvert | These warnings do not prevent SSH from starting; inspect the later SSH/ngrok error. |
+
+[Kaggle's current image source](https://github.com/Kaggle/docker-python/blob/main/Dockerfile.tmpl)
+uses a Colab runtime and Python 3.13. The scripts discover paths at runtime rather
+than pinning Python or NVIDIA utility versions. See [SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md)
+for implementation and validation details.

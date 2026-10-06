@@ -1,1 +1,9 @@
 ReadMe.ipynb
+
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+ngrok.yml
+ngrok.yaml
+*.log

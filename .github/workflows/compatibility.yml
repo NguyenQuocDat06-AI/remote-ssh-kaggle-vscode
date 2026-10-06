@@ -1,0 +1,29 @@
+name: Kaggle SSH compatibility
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:22.04
+          - ubuntu:24.04
+          - ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Bash syntax
+        run: bash -n install_ssh_server.sh add_ngrok_token.sh run_ssh_server.sh tests/integration_ssh.sh
+      - name: Check scripts with ShellCheck
+        run: shellcheck install_ssh_server.sh add_ngrok_token.sh run_ssh_server.sh tests/integration_ssh.sh
+      - name: Test missing host keys, password login, environment and repeated setup
+        run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace "${{ matrix.image }}" bash tests/integration_ssh.sh
