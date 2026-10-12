@@ -1,8 +1,11 @@
-"""Regenerate clean Kaggle notebooks; preserve each notebook's Kaggle settings."""
+"""Build self-contained VS Code Remote Tunnels notebooks from the launcher."""
 
 import json
 from pathlib import Path
 import textwrap
+
+
+ROOT = Path(__file__).resolve().parent
 
 
 def cell(kind, source, cell_id):
@@ -13,149 +16,104 @@ def cell(kind, source, cell_id):
     return result
 
 
-CELLS = [
-    cell("markdown", """
-        # Kaggle Remote-SSH for VS Code
+def notebook_cells():
+    return [
+        cell("markdown", """
+            # Kaggle kết nối VS Code bằng Remote Tunnels
 
-        Source: https://github.com/NguyenQuocDat06-AI/remote-ssh-kaggle-vscode
+            Notebook tự chứa toàn bộ launcher. Nhập file vào Kaggle và bật **Internet**.
+            Chọn GPU trong Settings nếu cần GPU; notebook cũng chạy được với CPU.
 
-        1. Enable **Internet** in Notebook settings. Select a GPU if you need one.
-        2. In **Add-ons > Secrets**, add and enable `SSH_PASSWORD` and `NGROK_AUTHTOKEN`.
-           Get your ngrok token at https://dashboard.ngrok.com/get-started/your-authtoken.
-        3. Run the following cells in order, or use **Save & Run All**. No restart is required.
-        4. Keep the last cell running during your VS Code session.
+            Trong **Add-ons > Secrets**, thêm và bật hai Secrets:
 
-        **Save & Run All** starts a separate batch session, sets up SSH, and keeps
-        the final cell running. Open that version's live logs to get its SSH hostname/port.
-        The run stays **Running** while the tunnel is active; stop it when you finish.
-        **Quick Save** saves your edits without starting another session.
-        After **Stop Session**, rerun all cells and update the generated hostname/port.
-        Files in `/kaggle/working` can persist; installed services and host keys do not.
-    """, "instructions"),
-    cell("code", """
-        import os
-        from pathlib import Path
-        import subprocess
-        import sys
+            | Tên | Giá trị |
+            |---|---|
+            | `VSCODE_TUNNEL_ID` | `swift-field-gbd67x7.asse` (ID đầy đủ của tunnel bạn đã tạo) |
+            | `VSCODE_TUNNEL_TOKEN` | Chuỗi token Dev Tunnel được cấp cho tunnel đó |
 
-        REPO_URL = "https://github.com/NguyenQuocDat06-AI/remote-ssh-kaggle-vscode.git"
-        REPO_DIR = Path("/kaggle/working/remote-ssh-kaggle-vscode")
+            Cấp token trên Windows bằng:
+            ```powershell
+            devtunnel token swift-field-gbd67x7.asse --scopes host --scopes manage --scopes connect
+            ```
+            Token hiện có thời hạn khoảng **24 giờ**. Khi hết hạn, cấp lại bằng lệnh trên
+            và cập nhật Secret. Thời hạn tunnel 30 ngày không kéo dài thời hạn token.
 
-        if not REPO_DIR.exists():
-            subprocess.run(["git", "clone", "--branch", "main", "--depth", "1",
-                            REPO_URL, str(REPO_DIR)], check=True)
-        else:
-            if not (REPO_DIR / ".git").exists():
-                raise RuntimeError(f"{REPO_DIR} exists but is not a Git repository.")
-            changes = subprocess.check_output(
-                ["git", "-C", str(REPO_DIR), "status", "--porcelain", "--untracked-files=no"], text=True
-            ).strip()
-            if changes:
-                raise RuntimeError("Save or stash your changes in the repository before updating it.")
-            subprocess.run(["git", "-C", str(REPO_DIR), "remote", "set-url", "origin", REPO_URL], check=True)
-            subprocess.run(["git", "-C", str(REPO_DIR), "checkout", "main"], check=True)
-            subprocess.run(["git", "-C", str(REPO_DIR), "pull", "--ff-only", "origin", "main"], check=True)
-        print("Notebook Python:", sys.executable, sys.version.split()[0], flush=True)
-    """, "get-source"),
-    cell("markdown", """
-        ## Install and configure SSH + ngrok
+            Chạy ba cell code theo thứ tự, hoặc chọn **Save & Run All**. Cả chế độ
+            tương tác và batch đều khởi động tunnel; cell cuối giữ trạng thái **Running**.
+            Với Save & Run All, xem log của phiên đang chạy để biết trạng thái kết nối.
+            Không cần restart sau khi cài đặt.
 
-        This creates missing SSH host keys, validates the server, and captures the
-        notebook's Python/CUDA paths for SSH terminals. Secrets are read at runtime.
-        Setup stops immediately if a command fails.
-    """, "setup-instructions"),
-    cell("code", """
-        def read_secret(name):
-            value = os.environ.get(name)
-            if not value:
-                try:
-                    from kaggle_secrets import UserSecretsClient
-                    value = UserSecretsClient().get_secret(name)
-                except Exception:
-                    raise RuntimeError(
-                        f"Add and enable {name} in Add-ons > Secrets for this notebook."
-                    ) from None
-            if not value or "\\n" in value or "\\r" in value:
-                raise ValueError(f"{name} must be nonempty and contain only one line.")
-            return value
+            Nguồn: https://github.com/NguyenQuocDat06-AI/remote-ssh-kaggle-vscode
+            Hướng dẫn: https://code.visualstudio.com/docs/remote/tunnels
+        """, "instructions"),
+        cell("markdown", """
+            ## 1. Nạp launcher
 
-        setup_env = os.environ.copy()
-        setup_env["KAGGLE_PYTHON"] = sys.executable
-        try:
-            setup_env["SSH_PASSWORD"] = read_secret("SSH_PASSWORD")
-            setup_env["NGROK_AUTHTOKEN"] = read_secret("NGROK_AUTHTOKEN")
-            subprocess.run(["bash", "install_ssh_server.sh"], cwd=REPO_DIR, env=setup_env, check=True)
-            setup_env.pop("SSH_PASSWORD", None)
-            subprocess.run(["bash", "add_ngrok_token.sh"], cwd=REPO_DIR, env=setup_env, check=True)
-        finally:
-            setup_env.pop("SSH_PASSWORD", None)
-            setup_env.pop("NGROK_AUTHTOKEN", None)
-        print("Setup complete. The next cell starts the tunnel and keeps the session running.", flush=True)
-    """, "setup"),
-    cell("markdown", """
-        ## Connect from VS Code
+            Cell này định nghĩa các hàm chạy tunnel. Token chỉ được đọc từ Secrets
+            khi chạy cell cuối, không được ghi vào source hay in trong log.
+        """, "launcher-instructions"),
+        cell("code", (ROOT / "vscode_tunnel.py").read_text(encoding="utf-8"), "launcher"),
+        cell("markdown", """
+            ## 2. Tải VS Code CLI
 
-        Run the cell below and copy its `Host Kaggle` block into your local
-        `~/.ssh/config`. Install **Remote - SSH** in VS Code, choose **Connect to Host > Kaggle**,
-        select **Linux**, and enter your `SSH_PASSWORD`. Open `/kaggle/working`.
+            Tải bản stable chính thức và kiểm tra CLI chạy được trên image Kaggle.
+            Chạy lại bước này sau mỗi phiên mới. Python/CUDA dùng môi trường notebook hiện tại.
+        """, "install-instructions"),
+        cell("code", """
+            CODE_CLI = install_vscode_cli(Path("/kaggle/working/.vscode-tunnel/bin"))
+            print("Python của notebook:", sys.executable, flush=True)
+        """, "install"),
+        cell("markdown", """
+            ## 3. Khởi động tunnel và kết nối từ Windows
 
-        The cell remains running until you interrupt it. Stopping it closes the tunnel.
-        In a **Save & Run All** session, read the generated SSH configuration in the
-        running version's logs. The run will not finish while the tunnel is active.
-        ngrok TCP access requires an account eligible for TCP endpoints; a free account
-        currently needs a valid payment method. If ngrok refuses the tunnel, its error
-        appears in this cell.
+            1. Trong VS Code trên Windows, cài extension **Remote - Tunnels**.
+            2. Chạy cell bên dưới và chờ log báo tunnel đã kết nối.
+            3. Nhấn **Ctrl+Shift+P > Remote Tunnels: Connect to Tunnel**.
+            4. Đăng nhập cùng tài khoản **GitHub** đã dùng để tạo Dev Tunnel và chọn **kaggle**.
+            5. Mở thư mục **/kaggle/working**. Trong **Python: Select Interpreter**, chọn đường dẫn
+               Python đã in ở cell cài đặt.
 
-        To check Python/GPU in an SSH terminal:
-        ```bash
-        python -c "import sys; print(sys.executable)"
-        nvidia-smi
-        python -c "import torch; print(torch.cuda.is_available())"
-        ```
-        A CPU session has no GPU. The scripts use existing image libraries and do not
-        install or replace NVIDIA drivers.
-    """, "connect-instructions"),
-    cell("code", """
-        import signal
+            Kết nối đi qua VS Code Remote Tunnels. Bạn có thể mở terminal, sửa file và debug;
+            notebook không yêu cầu ngrok, mật khẩu SSH, VPS, domain hoặc Cloudflare trên Windows.
+            Bạn cũng có thể mở link `vscode.dev` mà CLI in ra.
 
-        tunnel_env = os.environ.copy()
-        tunnel_env["KAGGLE_PYTHON"] = sys.executable
-        tunnel_process = subprocess.Popen(
-            ["bash", "run_ssh_server.sh"], cwd=REPO_DIR, env=tunnel_env, start_new_session=True
-        )
-        try:
-            returncode = tunnel_process.wait()
-            if returncode:
-                raise RuntimeError(f"Tunnel stopped with exit code {returncode}. Check the error above.")
-        except KeyboardInterrupt:
-            if tunnel_process.poll() is None:
-                os.killpg(tunnel_process.pid, signal.SIGINT)
-                try:
-                    tunnel_process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(tunnel_process.pid, signal.SIGKILL)
-                    tunnel_process.wait()
-            print("Tunnel stopped. Rerun this cell to reconnect.", flush=True)
-    """, "tunnel"),
-]
+            **Giữ cell cuối chạy** trong lúc làm việc. Interrupt/Stop sẽ đóng tunnel.
+            Giới hạn thời gian phiên và GPU của Kaggle vẫn áp dụng. Sau khi dừng phiên,
+            chạy lại ba cell và dùng token chưa hết hạn. Dừng tunnel cũ trước khi chạy phiên mới
+            với cùng Tunnel ID.
+
+            Nếu gặp `401/403`, kiểm tra token có hết hạn, có đúng tunnel và có đủ quyền
+            `host`, `manage`, `connect` không; cấp lại token nếu cần.
+
+            Kiểm tra GPU trong terminal VS Code (chỉ có GPU nếu đã bật Accelerator):
+            ```bash
+            nvidia-smi
+            python -c "import torch; print(torch.cuda.is_available())"
+            ```
+        """, "connect-instructions"),
+        cell("code", """
+            TUNNEL_NAME = "kaggle"
+            run_vscode_tunnel(CODE_CLI, name=TUNNEL_NAME)
+        """, "tunnel"),
+    ]
 
 
 def main():
+    cells = notebook_cells()
     for filename in ("notebook_example.ipynb", "fork-of-ssh-kaggle-visualstudiocode-9d17dd.ipynb"):
-        path = Path(__file__).parent / filename
+        path = ROOT / filename
         notebook = json.loads(path.read_text(encoding="utf-8"))
-        notebook["cells"] = CELLS
+        notebook["cells"] = cells
         notebook["nbformat"] = 4
         notebook["nbformat_minor"] = 5
         notebook["metadata"]["language_info"] = {"name": "python", "file_extension": ".py",
                                                  "mimetype": "text/x-python"}
-        # Use Kaggle's current image rather than pinning the old exported image.
         kaggle = notebook["metadata"].get("kaggle")
         if kaggle is not None:
             kaggle.pop("dockerImageVersionId", None)
             kaggle["isInternetEnabled"] = True
-        path.write_text(json.dumps(notebook, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-        print(f"Updated {filename} (no credentials or outputs).")
+        path.write_text(json.dumps(notebook, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+        print(f"Updated {filename}: standalone Remote Tunnels, no credentials or outputs.")
 
 
 if __name__ == "__main__":

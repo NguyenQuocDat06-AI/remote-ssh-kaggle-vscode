@@ -1,135 +1,105 @@
-<div align="center">
+# Kaggle + VS Code Remote Tunnels
 
-# Remote-SSH Kaggle using Visual Studio Code
+Kết nối VS Code trên Windows tới môi trường Kaggle bằng **Remote - Tunnels** và
+token Dev Tunnel. Notebook tự chứa launcher; bạn có thể nhập file vào Kaggle và
+chạy mà không cần clone repository.
 
-**Connect VS Code to a Kaggle notebook with password authentication.**
+## Chạy notebook mới
 
-<img src="imgs/architecture_ssh.png" alt="SSH architecture">
-<img src="imgs/vscode_ssh_screen.png" alt="VS Code connected to Kaggle over SSH">
+1. Nhập [notebook cá nhân](fork-of-ssh-kaggle-visualstudiocode-9d17dd.ipynb) hoặc
+   [notebook mẫu](notebook_example.ipynb) vào Kaggle.
+2. Bật **Internet**. Chọn GPU trong Settings nếu cần GPU.
+3. Trong **Add-ons > Secrets**, thêm và bật:
 
-</div>
-
-## Set up the notebook
-
-1. Upload [notebook_example.ipynb](notebook_example.ipynb) or the updated
-   [personal notebook](fork-of-ssh-kaggle-visualstudiocode-9d17dd.ipynb) to Kaggle.
-   Both use this repository:
-   `https://github.com/NguyenQuocDat06-AI/remote-ssh-kaggle-vscode.git`.
-2. Enable **Internet** in Notebook settings. Select a GPU if needed; CPU sessions
-   also support SSH. Choose **Files only** persistence if you want your working
-   files to survive between interactive sessions.
-3. Open **Add-ons > Secrets**, add these secrets, and enable each for the notebook:
-
-   | Secret name | Value |
+   | Tên Secret | Giá trị |
    |---|---|
-   | `SSH_PASSWORD` | Your SSH login password |
-   | `NGROK_AUTHTOKEN` | Your [ngrok authtoken](https://dashboard.ngrok.com/get-started/your-authtoken) |
+   | `VSCODE_TUNNEL_ID` | ID đầy đủ, ví dụ `swift-field-gbd67x7.asse` |
+   | `VSCODE_TUNNEL_TOKEN` | Token Dev Tunnel cấp cho ID đó |
 
-4. Run the three code cells in order, or choose **Save & Run All**: update the source,
-   set up SSH/ngrok, then start the tunnel. Setup supports passwords with spaces
-   and shell characters and stops if a command fails. No session restart is needed.
-5. Leave the tunnel cell running. It prints a complete SSH configuration like:
+4. Chạy ba cell code theo thứ tự: nạp launcher, tải VS Code CLI, khởi động tunnel.
+   **Save & Run All** cũng chạy tunnel và giữ cell cuối hoạt động. Không cần restart.
+5. Giữ cell cuối chạy. Với Save & Run All, theo dõi log của phiên đang chạy.
 
-   ```ssh-config
-   Host Kaggle
-       HostName 1.tcp.ngrok.io
-       Port 12345
-       User root
-       ServerAliveInterval 60
-       ServerAliveCountMax 3
-   ```
+## Kết nối trên Windows
 
-   Copy the actual hostname and port printed by your session.
+1. Cài extension **Remote - Tunnels** trong VS Code.
+2. Nhấn **Ctrl+Shift+P > Remote Tunnels: Connect to Tunnel**.
+3. Đăng nhập cùng tài khoản GitHub đã dùng để tạo Dev Tunnel.
+4. Chọn máy **kaggle** sau khi log báo tunnel đã kết nối, rồi mở `/kaggle/working`.
+5. Trong **Python: Select Interpreter**, chọn đường dẫn Python notebook đã in ra.
 
-**Save & Run All** executes in a separate batch session and starts SSH there too.
-Open the running version's live logs and copy the SSH configuration printed by
-that session. Its status stays **Running** while the tunnel is active; stop the
-run when you finish. **Quick Save** saves edits without starting another session.
+Bạn có thể sửa file, mở terminal và debug trên Kaggle. Cách này dùng VS Code
+Remote Tunnels thay cho kết nối SSH bằng hostname/port; Windows không cần chạy
+ngrok, Cloudflare hay VPS. Bạn cũng có thể mở link `vscode.dev` do CLI in ra.
 
-[ngrok TCP endpoints](https://ngrok.com/docs/gateway/agent/cli#ngrok-tcp) require an
-account eligible for TCP access. Free accounts currently need a valid payment
-method. ngrok account/authentication errors appear in the tunnel cell.
+## Tạo hoặc cấp lại token
 
-## Connect from VS Code
+Cài Dev Tunnels CLI trên Windows và đăng nhập GitHub một lần:
 
-1. Install [Visual Studio Code](https://code.visualstudio.com/) and the
-   **Remote - SSH** extension.
-2. Open **Remote-SSH: Open SSH Configuration File** from the command palette.
-   On Windows, this is normally `%USERPROFILE%\.ssh\config`.
-3. Paste the generated `Host Kaggle` block into the file and save it.
-4. Select **Remote-SSH: Connect to Host > Kaggle**, select **Linux** if prompted,
-   and enter the password from your `SSH_PASSWORD` secret.
-5. Open `/kaggle/working` and use VS Code's terminal, debugger, and file editor.
+```powershell
+winget install Microsoft.devtunnel
+```
 
-See the [VS Code Remote-SSH documentation](https://code.visualstudio.com/docs/remote/ssh)
-for extension setup.
+Mở PowerShell mới sau khi cài, rồi chạy:
 
-## Python and GPU environment
+```powershell
+devtunnel user login -g -d
+```
 
-Setup captures the current notebook interpreter and Python/CUDA paths. Both
-remote commands and terminal shells receive the environment. Existing NVIDIA
-libraries are used; the scripts do not install or replace GPU drivers.
+Nếu chưa có tunnel, tạo bằng `devtunnel create` và ghi lại Tunnel ID. Với tunnel
+đã tạo trong phiên làm việc này, cấp token bằng:
 
-Check from the SSH terminal:
+```powershell
+devtunnel token swift-field-gbd67x7.asse --scopes host --scopes manage --scopes connect
+```
+
+Lặp lại `--scopes` cho từng quyền. Token hiện có thời hạn khoảng **24 giờ**;
+khi hết hạn, cấp lại với cùng ID và cập nhật `VSCODE_TUNNEL_TOKEN` trong Secrets.
+Thời hạn tunnel 30 ngày không kéo dài thời hạn token. Token GitHub PAT không
+thay thế được token Dev Tunnel.
+
+## Python, GPU và các phiên mới
+
+Launcher truyền môi trường Python/CUDA của notebook cho tiến trình VS Code.
+Chọn interpreter đã in ra nếu VS Code tự chọn interpreter khác. Kiểm tra GPU:
 
 ```bash
-python -c "import sys; print(sys.executable)"
 nvidia-smi
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-Choose the printed Python interpreter in VS Code's **Python: Select Interpreter**.
-If your interpreter is named `python3` instead of `python`, use `python3` or the
-printed absolute path.
+GPU chỉ có khi đã bật Accelerator. Notebook dùng thư viện/driver sẵn có của
+image Kaggle.
 
-Install extra packages into the notebook interpreter:
+Interrupt cell cuối hoặc Stop Session để đóng tunnel. Sau mỗi phiên mới, chạy
+lại cả ba cell. Dừng phiên tunnel cũ trước khi dùng cùng ID trong một phiên khác.
+Giới hạn thời gian và quota GPU của Kaggle vẫn áp dụng.
 
-```bash
-uv pip install --system --python "$KAGGLE_PYTHON" <package>
-```
+## Xử lý lỗi
 
-Or create an isolated environment that can use Kaggle's preinstalled packages:
-
-```bash
-uv venv --python "$KAGGLE_PYTHON" --system-site-packages .venv
-source .venv/bin/activate
-uv pip install <package>
-```
-
-A CPU session has no GPU. If the GPU checks fail, first check the notebook's
-Accelerator setting and compare the same checks in the notebook.
-
-## Start a new session
-
-After **Stop Session**, rerun all three code cells. `/kaggle/working` may persist,
-but system packages, SSH host keys, daemon processes, and the ngrok token config
-must be recreated. The clone cell updates an existing repository without creating
-a nested clone and stops if tracked local edits would be affected.
-
-Update the hostname and port in your local SSH configuration before reconnecting.
-If SSH reports a changed host key, verify you are connecting to your new notebook
-session, then remove the old entry using the exact hostname and port:
-
-```bash
-ssh-keygen -R "[HOSTNAME]:PORT"
-```
-
-SSH does not extend Kaggle's session duration or GPU quota. Check the limits
-shown in your Kaggle account.
-
-## Troubleshooting
-
-| Message | What to do |
+| Thông báo | Cách xử lý |
 |---|---|
-| `sshd: no hostkeys available -- exiting` | Update this repository and rerun setup. It runs `ssh-keygen -A` even when OpenSSH is already installed. |
-| `Add and enable SSH_PASSWORD/NGROK_AUTHTOKEN` | Add both secrets and enable them for this notebook. |
-| `ngrok exited` or `ERR_NGROK_*` | Read the agent error in the cell; check token, account TCP access, Internet, and other running agents. |
-| `Connection refused` before tunneling | Rerun setup in the current session. Check `/var/log/kaggle-sshd.log`. |
-| `Batch save: SSH setup is skipped` | Import the updated notebook; earlier notebook versions disabled SSH during Save & Run All. Pulling source alone does not replace the notebook's cells. |
-| `Permission denied` | Use `User root` and the password from the current secret; update both the source and notebook. |
-| Debugger warning about frozen modules or `SyntaxWarning` in nbconvert | These warnings do not prevent SSH from starting; inspect the later SSH/ngrok error. |
+| Thiếu `VSCODE_TUNNEL_ID` hoặc `VSCODE_TUNNEL_TOKEN` | Thêm và bật cả hai Secrets cho notebook. |
+| ID cần có vùng | Dùng ID đầy đủ, gồm hậu tố như `.asse`. |
+| Token đã hết hạn hoặc lỗi `401/403` | Cấp lại token có các quyền `host`, `manage`, `connect`, đúng Tunnel ID; cập nhật Secret. |
+| Không tải được VS Code CLI | Bật Internet và chạy lại cell tải CLI. |
+| Không thấy máy trong VS Code | Chờ log kết nối; đăng nhập đúng tài khoản tạo tunnel và chọn extension Remote - Tunnels. |
+| Debugger warning / SyntaxWarning của nbconvert | Các cảnh báo này không phải lỗi xác thực tunnel; xem thông báo sau đó trong log. |
 
-[Kaggle's current image source](https://github.com/Kaggle/docker-python/blob/main/Dockerfile.tmpl)
-uses a Colab runtime and Python 3.13. The scripts discover paths at runtime rather
-than pinning Python or NVIDIA utility versions. See [SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md)
-for implementation and validation details.
+## Source và kiểm tra
+
+`vscode_tunnel.py` là launcher dùng thư viện chuẩn Python. `update_notebooks.py`
+nhúng toàn bộ launcher vào cả hai notebook, xóa outputs/execution counts và giữ
+cấu hình accelerator/data sources của notebook cá nhân.
+
+```bash
+python update_notebooks.py
+python -m unittest discover -s tests -v
+```
+
+Các script OpenSSH/ngrok trước đây vẫn nằm trong repository cho người dùng
+luồng cũ; xem [SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md).
+
+Tài liệu chính thức: [VS Code Remote Tunnels](https://code.visualstudio.com/docs/remote/tunnels),
+[Dev Tunnels CLI](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/cli-commands),
+[thời hạn token](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/security#tunnel-access).

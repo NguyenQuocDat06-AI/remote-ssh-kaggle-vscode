@@ -1,8 +1,20 @@
 # Scripts guide
 
-Run the scripts inside a Kaggle Linux notebook. The notebooks read credentials
-from Kaggle Secrets and use `subprocess` with `check=True`, so failed setup stops
-execution and passwords are never interpolated into shell commands.
+The current notebooks use **VS Code Remote Tunnels**. `vscode_tunnel.py` reads
+`VSCODE_TUNNEL_ID` and `VSCODE_TUNNEL_TOKEN`, downloads the official stable CLI,
+and streams redacted logs while keeping the last cell running. ID and cluster
+are passed separately, so `swift-field-gbd67x7.asse` targets the `asse` region.
+The temporary CLI session directory is outside `/kaggle/working`.
+
+The launcher rejects expired tokens when JWT expiry metadata is available;
+the tunnel service performs authentication. New tokens are obtained using
+`devtunnel token ID --scopes host --scopes manage --scopes connect`.
+Both batch and interactive notebook runs start the tunnel. Interrupting the
+cell stops its process group; a failed CLI returns an error without including
+the token-bearing command in a `CalledProcessError` traceback.
+
+The following OpenSSH/ngrok scripts remain available for the earlier SSH flow.
+Run them inside a Kaggle Linux notebook with their required environment variables.
 
 ## `install_ssh_server.sh`
 
@@ -52,15 +64,14 @@ group and cleans up the tunnel. Keep the cell running during the connection.
 
 ## Notebook maintenance
 
-Both notebooks clone/update `NguyenQuocDat06-AI/remote-ssh-kaggle-vscode` on `main`,
-use Kaggle Secrets, and start SSH in both interactive and batch sessions. The
-last cell waits for the tunnel process, keeping Save & Run All active until the
-tunnel stops or Kaggle ends the session. The personal
-notebook retains its accelerator/data-source metadata, with the old image pin
-removed. Outputs and execution counts are cleared before publishing.
+Both notebooks embed `vscode_tunnel.py` and can run without cloning this repo.
+The last cell reads Kaggle Secrets and keeps Save & Run All active until the
+tunnel stops or Kaggle ends the session. The personal notebook retains its
+accelerator/data-source metadata, with the old image pin removed. Outputs and
+execution counts are cleared before publishing.
 
 Run `python update_notebooks.py` to regenerate both notebooks from the shared
-cells when changing their instructions or workflow.
+cells and launcher when changing their instructions or workflow.
 
 ## Validation
 
@@ -71,7 +82,12 @@ python -m unittest discover -s tests -v
 bash -n install_ssh_server.sh add_ngrok_token.sh run_ssh_server.sh tests/integration_ssh.sh
 ```
 
-The GitHub Actions workflow additionally runs ShellCheck and disposable Linux
+Remote Tunnels tests cover regional IDs, expired tokens, secret redaction using
+a real child process, notebook execution in both modes, and safe CLI extraction.
+An additional workflow check downloads the current Linux VS Code CLI and checks
+its version and command parsing without signing in or opening a public tunnel.
+
+The GitHub Actions workflow also runs ShellCheck and disposable Linux
 container tests on Ubuntu 22.04, Ubuntu 24.04, and a Python 3.13 Debian image. The
 integration test removes host keys after installing OpenSSH to reproduce the
 reported failure, then checks real password login, wrong-password rejection,

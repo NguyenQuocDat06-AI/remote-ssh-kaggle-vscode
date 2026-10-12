@@ -9,6 +9,24 @@ permissions:
   contents: read
 
 jobs:
+  vscode-cli:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate the official Linux VS Code CLI
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import tempfile
+          from vscode_tunnel import install_vscode_cli
+          with tempfile.TemporaryDirectory() as directory:
+              cli = install_vscode_cli(Path(directory) / "bin")
+              subprocess.run([str(cli), "--cli-data-dir", str(Path(directory) / "state"),
+                              "tunnel", "--tunnel-id", "syntax-check", "--cluster", "asse",
+                              "--host-token", "test-only-token", "--name", "kaggle", "--help"], check=True)
+          PY
   linux-ssh:
     runs-on: ubuntu-latest
     timeout-minutes: 15
