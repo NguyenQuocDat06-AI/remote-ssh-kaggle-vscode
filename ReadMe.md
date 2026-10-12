@@ -1,105 +1,49 @@
-# Kaggle + VS Code Remote Tunnels
+# Kaggle + VS Code
 
-Kết nối VS Code trên Windows tới môi trường Kaggle bằng **Remote - Tunnels** và
-token Dev Tunnel. Notebook tự chứa launcher; bạn có thể nhập file vào Kaggle và
-chạy mà không cần clone repository.
+Ket noi notebook Kaggle voi VS Code bang **Kaggle Jupyter Server**. Day la cach
+Kaggle huong dan cho VS Code; repository khong con khoi tao SSH, ngrok,
+Cloudflare hay VS Code/Dev Tunnels trong phien Kaggle.
 
-## Chạy notebook mới
+## Su dung
 
-1. Nhập [notebook cá nhân](fork-of-ssh-kaggle-visualstudiocode-9d17dd.ipynb) hoặc
-   [notebook mẫu](notebook_example.ipynb) vào Kaggle.
-2. Bật **Internet**. Chọn GPU trong Settings nếu cần GPU.
-3. Trong **Add-ons > Secrets**, thêm và bật:
+1. Tai [notebook ca nhan](fork-of-ssh-kaggle-visualstudiocode-9d17dd.ipynb) hoac
+   [notebook mau](notebook_example.ipynb) len Kaggle.
+2. Mo notebook trong Kaggle va khoi dong mot phien tuong tac. Chon CPU hoac GPU trong
+   Settings theo cong viec cua ban.
+3. Chon **Run > Kaggle Jupyter Server** trong menu Kaggle.
+4. Trong muc **Manually Connect**, sao chep **VS Code Compatible URL**. URL chua token
+   truy cap, vi vay khong luu no vao notebook, Kaggle Secrets, GitHub hay chia se voi
+   nguoi khac.
+5. Trong VS Code, cai extension **Jupyter**, mo file `.ipynb`, sau do bam Kernel Picker
+   o goc tren ben phai > **Existing Jupyter Server** > **Enter the URL of the running
+   Jupyter server**. Dan URL o buoc 4 va chon kernel Kaggle.
 
-   | Tên Secret | Giá trị |
-   |---|---|
-   | `VSCODE_TUNNEL_ID` | ID đầy đủ, ví dụ `swift-field-gbd67x7.asse` |
-   | `VSCODE_TUNNEL_TOKEN` | Token Dev Tunnel cấp cho ID đó |
+Cell kiem tra trong notebook se in Python runtime va trang thai CUDA. Cac cell chay tren
+Kaggle, trong khi ban sua `.ipynb` bang VS Code tren Windows.
 
-4. Chạy ba cell code theo thứ tự: nạp launcher, tải VS Code CLI, khởi động tunnel.
-   **Save & Run All** cũng chạy tunnel và giữ cell cuối hoạt động. Không cần restart.
-5. Giữ cell cuối chạy. Với Save & Run All, theo dõi log của phiên đang chạy.
+Ket noi het han khi phien Kaggle dung. Khoi dong lai phien va lay URL moi tu menu tren.
+Kaggle gioi han thoi gian/quota CPU va GPU theo tai khoan cua ban.
 
-## Kết nối trên Windows
+Kaggle chi ho tro luong nay cho notebook. Neu ban can terminal, Remote-SSH, truy cap toan
+bo he thong file hay mot may chu chay lien tuc, hay dung VPS cua ban.
 
-1. Cài extension **Remote - Tunnels** trong VS Code.
-2. Nhấn **Ctrl+Shift+P > Remote Tunnels: Connect to Tunnel**.
-3. Đăng nhập cùng tài khoản GitHub đã dùng để tạo Dev Tunnel.
-4. Chọn máy **kaggle** sau khi log báo tunnel đã kết nối, rồi mở `/kaggle/working`.
-5. Trong **Python: Select Interpreter**, chọn đường dẫn Python notebook đã in ra.
+## Ve notebook cu bi `Queued`
 
-Bạn có thể sửa file, mở terminal và debug trên Kaggle. Cách này dùng VS Code
-Remote Tunnels thay cho kết nối SSH bằng hostname/port; Windows không cần chạy
-ngrok, Cloudflare hay VPS. Bạn cũng có thể mở link `vscode.dev` do CLI in ra.
+Notebook phien ban cu khoi chay mot external remote tunnel. Dung phien do va khong thu cap
+token tunnel moi. Trong repository, notebook moi khong con co lenh nay. Metadata cua notebook
+duoc dat CPU va Internet tat; bat Internet hay GPU trong Settings chi khi notebook cua ban can.
 
-## Tạo hoặc cấp lại token
+Kaggle huong dan ket noi VS Code qua Jupyter Server trong
+[tai lieu Notebooks](https://www.kaggle.com/docs/notebooks). Cach ket noi tu VS Code bang
+Kernel Picker duoc mo ta trong [tai lieu VS Code Jupyter](https://code.visualstudio.com/docs/datascience/jupyter-notebooks).
 
-Cài Dev Tunnels CLI trên Windows và đăng nhập GitHub một lần:
-
-```powershell
-winget install Microsoft.devtunnel
-```
-
-Mở PowerShell mới sau khi cài, rồi chạy:
+## Cap nhat notebook va kiem tra
 
 ```powershell
-devtunnel user login -g -d
-```
-
-Nếu chưa có tunnel, tạo bằng `devtunnel create` và ghi lại Tunnel ID. Với tunnel
-đã tạo trong phiên làm việc này, cấp token bằng:
-
-```powershell
-devtunnel token swift-field-gbd67x7.asse --scopes host --scopes manage --scopes connect
-```
-
-Lặp lại `--scopes` cho từng quyền. Token hiện có thời hạn khoảng **24 giờ**;
-khi hết hạn, cấp lại với cùng ID và cập nhật `VSCODE_TUNNEL_TOKEN` trong Secrets.
-Thời hạn tunnel 30 ngày không kéo dài thời hạn token. Token GitHub PAT không
-thay thế được token Dev Tunnel.
-
-## Python, GPU và các phiên mới
-
-Launcher truyền môi trường Python/CUDA của notebook cho tiến trình VS Code.
-Chọn interpreter đã in ra nếu VS Code tự chọn interpreter khác. Kiểm tra GPU:
-
-```bash
-nvidia-smi
-python -c "import torch; print(torch.cuda.is_available())"
-```
-
-GPU chỉ có khi đã bật Accelerator. Notebook dùng thư viện/driver sẵn có của
-image Kaggle.
-
-Interrupt cell cuối hoặc Stop Session để đóng tunnel. Sau mỗi phiên mới, chạy
-lại cả ba cell. Dừng phiên tunnel cũ trước khi dùng cùng ID trong một phiên khác.
-Giới hạn thời gian và quota GPU của Kaggle vẫn áp dụng.
-
-## Xử lý lỗi
-
-| Thông báo | Cách xử lý |
-|---|---|
-| Thiếu `VSCODE_TUNNEL_ID` hoặc `VSCODE_TUNNEL_TOKEN` | Thêm và bật cả hai Secrets cho notebook. |
-| ID cần có vùng | Dùng ID đầy đủ, gồm hậu tố như `.asse`. |
-| Token đã hết hạn hoặc lỗi `401/403` | Cấp lại token có các quyền `host`, `manage`, `connect`, đúng Tunnel ID; cập nhật Secret. |
-| Không tải được VS Code CLI | Bật Internet và chạy lại cell tải CLI. |
-| Không thấy máy trong VS Code | Chờ log kết nối; đăng nhập đúng tài khoản tạo tunnel và chọn extension Remote - Tunnels. |
-| Debugger warning / SyntaxWarning của nbconvert | Các cảnh báo này không phải lỗi xác thực tunnel; xem thông báo sau đó trong log. |
-
-## Source và kiểm tra
-
-`vscode_tunnel.py` là launcher dùng thư viện chuẩn Python. `update_notebooks.py`
-nhúng toàn bộ launcher vào cả hai notebook, xóa outputs/execution counts và giữ
-cấu hình accelerator/data sources của notebook cá nhân.
-
-```bash
 python update_notebooks.py
 python -m unittest discover -s tests -v
 ```
 
-Các script OpenSSH/ngrok trước đây vẫn nằm trong repository cho người dùng
-luồng cũ; xem [SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md).
-
-Tài liệu chính thức: [VS Code Remote Tunnels](https://code.visualstudio.com/docs/remote/tunnels),
-[Dev Tunnels CLI](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/cli-commands),
-[thời hạn token](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/security#tunnel-access).
+`update_notebooks.py` tao lai ca hai notebook, xoa outputs/execution counts va giu metadata
+Kaggle an toan cho notebook mau. Cac script SSH/ngrok cu van duoc giu lai nhu lich su cua
+repository, nhung khong duoc notebook hay tai lieu nay su dung.
