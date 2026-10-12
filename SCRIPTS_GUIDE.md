@@ -1,30 +1,97 @@
-# Guide
+# Scripts guide
 
-Notebook duoc tao boi `update_notebooks.py` dung **Kaggle Jupyter Server**. No khong cai
-dat OpenSSH, ngrok, Cloudflare hay VS Code/Dev Tunnel CLI trong Kaggle.
+The current notebooks use **VS Code Remote Tunnels**. `vscode_tunnel.py` reads
+`VSCODE_TUNNEL_ID` and `VSCODE_TUNNEL_TOKEN`, downloads the official stable CLI,
+and streams redacted logs while keeping the last cell running. ID and cluster
+are passed separately, so `swift-field-gbd67x7.asse` targets the `asse` region.
+The temporary CLI session directory is outside `/kaggle/working`.
 
-## Ket noi VS Code
+The launcher rejects expired tokens when JWT expiry metadata is available;
+the tunnel service performs authentication. New tokens are obtained using
+`devtunnel token ID --scopes host --scopes manage --scopes connect`.
+Both batch and interactive notebook runs start the tunnel. Interrupting the
+cell stops its process group; a failed CLI returns an error without including
+the token-bearing command in a `CalledProcessError` traceback.
 
-1. Khoi dong phien tuong tac trong notebook Kaggle.
-2. Chon **Run > Kaggle Jupyter Server**.
-3. Sao chep **VS Code Compatible URL** trong muc **Manually Connect**.
-4. Trong VS Code co extension Jupyter, mo `.ipynb`, chon Kernel Picker > **Existing
-   Jupyter Server** > **Enter the URL of the running Jupyter server**, roi dan URL.
+The following OpenSSH/ngrok scripts remain available for the earlier SSH flow.
+Run them inside a Kaggle Linux notebook with their required environment variables.
 
-URL chua token truy cap session. Khong ghi no vao source, Secret, output hay commit Git.
-Session ket thuc thi URL cung het hieu luc; lay URL moi khi bat session moi.
+## `install_ssh_server.sh`
 
-Luon dung luong nay de chay notebook Kaggle trong VS Code. Cac file SSH/ngrok cu trong
-repository chi la tai lieu lich su va khong duoc ho tro cho Kaggle.
+Requires `SSH_PASSWORD` in the environment, or an explicit password argument for
+older callers. There is no default password. `KAGGLE_PYTHON` selects the notebook
+interpreter; the notebook passes `sys.executable`. `SSH_PORT` defaults to `22`.
+
+The script:
+
+1. Installs OpenSSH/curl if needed, creates `/run/sshd`, and runs `ssh-keygen -A`
+   to restore missing host keys even if OpenSSH is already installed.
+2. Sets the root password without printing it.
+3. Downloads the current official ngrok v3 binary for amd64 or arm64.
+4. Calls `ssh_environment.py` to generate `/etc/ssh/sshd_config_kaggle` and
+   `/etc/profile.d/kaggle-ssh.sh` from the current Python/CUDA environment.
+5. Validates the config with `sshd -t`, stops the distro SSH listener if present,
+   and starts the project listener directly. This works without systemd.
+6. Reads an actual SSH banner before reporting success.
+
+The dedicated configuration enables root/password authentication and TCP
+forwarding for VS Code, binds to loopback, and uses internal SFTP. Image defaults
+and cloud-init include files cannot override it. Its PID is in
+`/run/kaggle-sshd.pid`; diagnostic logs are in `/var/log/kaggle-sshd.log`.
+
+Repeated setup preserves existing host keys and adds each shell environment hook
+only once. Environment transfer uses an allowlist; passwords, tokens, and Kaggle
+credential variables are excluded. GPU paths are included only when present.
+
+## `add_ngrok_token.sh`
+
+Requires `NGROK_AUTHTOKEN` in the environment, or an explicit token argument for
+older callers. Empty tokens and `YOUR_NGROK_TOKEN` are rejected. It saves the
+ngrok token using the agent's configuration command, then validates the config.
+Configuration files are created with restricted permissions.
+
+## `run_ssh_server.sh` / `ssh_tunnel.py`
+
+Validates ngrok's configuration and checks the local SSH banner before launching
+an ngrok TCP tunnel. The deprecated `--region` flag is omitted. The Python helper
+reads this agent's JSON startup log to obtain the assigned endpoint and prints a
+complete `Host Kaggle` block. It does not read another agent's endpoint or kill
+unrelated ngrok processes.
+
+Startup times out after 60 seconds. ngrok failures are shown in the cell and
+return a failure status. Interrupting the notebook's last cell stops its process
+group and cleans up the tunnel. Keep the cell running during the connection.
 
 ## Notebook maintenance
 
-Chay lenh sau sau khi sua `update_notebooks.py`:
+Both notebooks embed `vscode_tunnel.py` and can run without cloning this repo.
+The last cell reads Kaggle Secrets and keeps Save & Run All active until the
+tunnel stops or Kaggle ends the session. The personal notebook retains its
+accelerator/data-source metadata, with the old image pin removed. Outputs and
+execution counts are cleared before publishing.
 
-```powershell
-python update_notebooks.py
+Run `python update_notebooks.py` to regenerate both notebooks from the shared
+cells and launcher when changing their instructions or workflow.
+
+## Validation
+
+Local regression tests require only Python's standard library:
+
+```bash
 python -m unittest discover -s tests -v
+bash -n install_ssh_server.sh add_ngrok_token.sh run_ssh_server.sh tests/integration_ssh.sh
 ```
 
-Kiem tra xac nhan ca hai notebook co cung huong dan, code cell hop le, khong co Secret/tunnel
-command va khong co output da luu.
+Remote Tunnels tests cover regional IDs, expired tokens, secret redaction using
+a real child process, notebook execution in both modes, and safe CLI extraction.
+An additional workflow check downloads the current Linux VS Code CLI and checks
+its version and command parsing without signing in or opening a public tunnel.
+
+The GitHub Actions workflow also runs ShellCheck and disposable Linux
+container tests on Ubuntu 22.04, Ubuntu 24.04, and a Python 3.13 Debian image. The
+integration test removes host keys after installing OpenSSH to reproduce the
+reported failure, then checks real password login, wrong-password rejection,
+SFTP, transferred environment paths, repeated setup, and stable host identity.
+It validates ngrok configuration with a dummy token and does not open a public
+tunnel. An actual Kaggle GPU session and a valid ngrok account are still needed
+for the full VS Code/GPU connection.
