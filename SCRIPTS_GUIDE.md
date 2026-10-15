@@ -4,7 +4,9 @@ The current notebooks use **VS Code Remote Tunnels**. `vscode_tunnel.py` reads
 `VSCODE_TUNNEL_ID` and `VSCODE_TUNNEL_TOKEN`, downloads the official stable CLI,
 and streams redacted logs while keeping the last cell running. ID and cluster
 are passed separately, so `swift-field-gbd67x7.asse` targets the `asse` region.
-The temporary CLI session directory is outside `/kaggle/working`.
+The temporary CLI session directory is created under `/kaggle/working`, because
+Kaggle can make `/tmp` read-only during a long-running session. It is removed
+when the tunnel cell exits normally.
 
 The launcher rejects expired tokens when JWT expiry metadata is available;
 the tunnel service performs authentication. New tokens are obtained using

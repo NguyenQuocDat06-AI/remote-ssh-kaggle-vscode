@@ -122,9 +122,15 @@ class TunnelTests(unittest.TestCase):
 
 
 class NotebookTests(unittest.TestCase):
+    NOTEBOOK_FILENAMES = (
+        "notebook_example.ipynb",
+        "fork-of-ssh-kaggle-visualstudiocode-9d17dd.ipynb",
+    )
+
     def test_notebooks_are_clean_and_runnable(self):
         root = Path(__file__).resolve().parents[1]
-        for path in root.glob("*.ipynb"):
+        for filename in self.NOTEBOOK_FILENAMES:
+            path = root / filename
             with self.subTest(notebook=path.name):
                 notebook = json.loads(path.read_text(encoding="utf-8"))
                 self.assertNotIn("dockerImageVersionId", notebook["metadata"].get("kaggle", {}))
@@ -139,7 +145,8 @@ class NotebookTests(unittest.TestCase):
 
     def test_interactive_and_batch_start_vscode_and_wait_for_tunnel(self):
         root = Path(__file__).resolve().parents[1]
-        for path in root.glob("*.ipynb"):
+        for filename in self.NOTEBOOK_FILENAMES:
+            path = root / filename
             notebook = json.loads(path.read_text(encoding="utf-8"))
             for mode in ("Interactive", "Batch"):
                 with self.subTest(notebook=path.name, mode=mode):

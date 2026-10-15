@@ -155,6 +155,13 @@ def repeated_reconnects(reconnect_times, message, now, window=90, limit=4):
     return len(reconnect_times) >= limit
 
 
+def tunnel_state_parent(working_directory=Path("/kaggle/working")):
+    """Use Kaggle's writable work volume instead of its transient /tmp mount."""
+    if working_directory.is_dir() and os.access(working_directory, os.W_OK):
+        return working_directory
+    return None
+
+
 def run_vscode_tunnel(cli, name="kaggle"):
     if platform.system() != "Linux":
         raise RuntimeError("Chạy cell tunnel trên Kaggle Linux.")
@@ -170,8 +177,11 @@ def run_vscode_tunnel(cli, name="kaggle"):
     print("VS Code: Remote Tunnels: Connect to Tunnel > đăng nhập GitHub > chọn máy khi tunnel sẵn sàng.", flush=True)
     print(f"Python của notebook: {sys.executable}\nWorkspace: /kaggle/working", flush=True)
     print("Giữ cell này chạy trong lúc làm việc. Interrupt/Stop để đóng tunnel.", flush=True)
-    # Session state stays outside notebook outputs and persisted workspace files.
-    with tempfile.TemporaryDirectory(prefix="kaggle-vscode-session-") as session:
+    # Kaggle can remount /tmp read-only during a long session. Keep short-lived
+    # CLI/VS Code Server state in its writable work volume and remove it on exit.
+    with tempfile.TemporaryDirectory(
+        prefix=".kaggle-vscode-session-", dir=tunnel_state_parent()
+    ) as session:
         command = [str(cli), "--cli-data-dir", session, "tunnel", "--name", name,
                    "--tunnel-id", identifier, "--cluster", cluster, "--host-token", token,
                    "--accept-server-license-terms"]

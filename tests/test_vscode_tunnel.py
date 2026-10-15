@@ -26,6 +26,12 @@ def test_token(claims):
 
 
 class CredentialTests(unittest.TestCase):
+    def test_tunnel_state_parent_uses_a_writable_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            self.assertEqual(vscode_tunnel.tunnel_state_parent(directory), directory)
+        self.assertIsNone(vscode_tunnel.tunnel_state_parent(Path("/path/that/does/not/exist")))
+
     def test_session_name_is_unique_and_valid(self):
         with patch.dict(os.environ, {"KAGGLE_KERNEL_RUN_ID": "f68a90ba-0123-4567-89ab-cdef98765432"}, clear=True):
             self.assertEqual(vscode_tunnel.session_tunnel_name(), "kaggle-98765432")
@@ -152,7 +158,8 @@ class LauncherTests(unittest.TestCase):
 
     def test_generated_notebooks_match_launcher_and_preserve_outputs_policy(self):
         expected_cells = update_notebooks.notebook_cells()
-        for path in update_notebooks.ROOT.glob("*.ipynb"):
+        for filename in ("notebook_example.ipynb", "fork-of-ssh-kaggle-visualstudiocode-9d17dd.ipynb"):
+            path = update_notebooks.ROOT / filename
             with self.subTest(notebook=path.name):
                 notebook = json.loads(path.read_text(encoding="utf-8"))
                 self.assertEqual(notebook["cells"], expected_cells)
